@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Integration Health</title>
+  <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header>
+  <h1>Brightline HR Integration Health Check Dashboard</h1>
+  <div class="controls">
+    <label for="view">View</label>
+    <select id="view">
+      <option value="live">Live (last hour)</option>
+      <option value="daily">Daily (24 hours)</option>
+      <option value="weekly">Weekly (7 days)</option>
+      <option value="monthly">Monthly (30 days)</option>
+    </select>
+    <label for="interval">Auto-refresh</label>
+    <select id="interval">
+      <option value="15">Every 15 s</option>
+      <option value="30">Every 30 s</option>
+      <option value="60">Every 1 min</option>
+      <option value="120">Every 2 min</option>
+      <option value="300">Every 5 min</option>
+      <option value="0">Off</option>
+    </select>
+    <button id="refreshNow" type="button">Refresh now</button>
+    <button id="download" type="button" title="Download the selected view as CSV">Download CSV</button>
+    <span id="offline" hidden>connection lost, retrying</span>
+  </div>
+</header>
+<main>
+  <div id="view-root">
+    <div th:replace="~{fragments/lanes :: lanes}"></div>
+  </div>
+</main>
+<script th:inline="javascript">
+  const liveUrl = /*[[@{/dashboard/fragment}]]*/ '/dashboard/fragment';
+  const reportUrl = /*[[@{/dashboard/report}]]*/ '/dashboard/report';
+  const defaultSeconds = /*[[${refreshSeconds}]]*/ 60;
+  const intervalSelect = document.getElementById('interval');
+  const viewSelect = document.getElementById('view');
+  const downloadUrl = /*[[@{/report/download}]]*/ '/report/download';
+  let timer = null;
+  let currentSeconds = defaultSeconds;
+  let currentView = 'live';
+
+  function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function save(key, v) { try { localStorage.setItem(key, String(v)); } catch (e) { /* storage unavailable */ } }
+  function hasOption(sel, v) { return Array.from(sel.options).some(o => o.value === String(v)); }
+
+  function endpoint(force) {
+    if (currentView === 'live') {
+      // Ask the server to re-evaluate if its data is older than the chosen interval (0 = force now)
+      return liveUrl + '?maxAge=' + (force ? 0 : currentSeconds);
+    }
+    return reportUrl + '?period=' + currentView.toUpperCase() + (force ? '&force=true' : '');
+  }
+
+  async function refresh(force) {
+    const requestedView = currentView;
+    try {
+      const r = await fetch(endpoint(force), {cache: 'no-store'});
+      if (!r.ok) throw new Error(r.status);
+      const html = await r.text();
+      if (requestedView !== currentView) return;   // user switched view while this was in flight
+      document.getElementById('view-root').innerHTML = html;
+      document.getElementById('offline').hidden = true;
+    } catch (e) {
+      document.getElementById('offline').hidden = false;
+    }
+  }
+
+  function schedule(seconds) {
+    currentSeconds = seconds;
+    if (timer) clearInterval(timer);
+    timer = seconds > 0 ? setInterval(() => refresh(false), seconds * 1000) : null;
+  }
+
+  // refresh interval: saved choice, else the server default (health.refresh-seconds)
+  if (!hasOption(intervalSelect, defaultSeconds)) {
+    intervalSelect.add(new Option('Every ' + defaultSeconds + ' s', defaultSeconds));
+  }
+  let initialSeconds = parseInt(load('refreshSeconds'), 10);
+  if (isNaN(initialSeconds) || !hasOption(intervalSelect, initialSeconds)) initialSeconds = defaultSeconds;
+  intervalSelect.value = String(initialSeconds);
+  schedule(initialSeconds);
+
+  // view: saved choice, else live (already server-rendered)
+  const savedView = load('dashboardView');
+  if (savedView && hasOption(viewSelect, savedView)) currentView = savedView;
+  viewSelect.value = currentView;
+  if (currentView !== 'live') refresh(false);
+
+  intervalSelect.addEventListener('change', () => {
+    const v = parseInt(intervalSelect.value, 10);
+    save('refreshSeconds', v);
+    schedule(v);
+    if (v > 0) refresh(false);
+  });
+  viewSelect.addEventListener('change', () => {
+    currentView = viewSelect.value;
+    save('dashboardView', currentView);
+    refresh(false);
+  });
+  document.getElementById('refreshNow').addEventListener('click', () => refresh(true));
+  document.getElementById('download').addEventListener('click', () => { window.location.href = downloadUrl + '?period=' + currentView.toUpperCase(); });
+</script>
+</body>
+</html>

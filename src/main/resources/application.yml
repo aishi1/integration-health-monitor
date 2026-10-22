@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: integration-health-monitor
+  #datasource:
+    #url: jdbc:mysql://localhost:3306/integration_monitor?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&rewriteBatchedStatements=true
+    #username: ${DB_USER:root}
+    #password: ${DB_PASSWORD:root}
+  datasource:
+    url: jdbc:h2:mem:mydb
+    driverClassName: org.h2.Driver
+    username: sa
+    password: password
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  thymeleaf:
+    cache: false
+  h2:
+    console:
+      enabled: true
+
+health:
+  # latest-log : "now" = newest log timestamp (needed for the August 2026 sample data)
+  # system     : "now" = wall clock (production)
+  reference-time: latest-log
+  window-minutes: 60
+  min-requests: 6            # below this, rate-based rules abstain
+  recovery-factor: 0.7       # hysteresis: to step down from RED/AMBER, rate must fall below threshold * 0.7
+  refresh-seconds: 60        # browser refresh (keep in sync with evaluation-interval-ms)
+  evaluation-interval-ms: 60000
+  initial-delay-ms: 3000
+  default-cadence-minutes: 5
+  sample-logs: classpath:sample/integration_logs_month.json   # leave blank to disable seeding
+  # Rule thresholds (placeholders, tune against real data)
+  error-rate:           { amber: 0.15, red: 0.30 }   # 5xx + timeouts / total
+  throttle:             { amber: 0.05, red: 0.50 }   # 429 / total
+  auth-errors:          { amber: 0.01, red: 0.50 }   # 401/403 / total (any = amber)
+  consecutive-failures: { amber: 3,    red: 5 }
+  latency:              { amber-ratio: 1.5, red-ratio: 3.0 }  # recent vs baseline median, successes only
+  silence:              { amber-cadences: 2, red-cadences: 5 }

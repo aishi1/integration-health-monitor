@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="lanes" id="lanes">
+  <div class="summary">
+    <span class="pill red"><span th:text="${#lists.size(red)}">0</span> Red</span>
+    <span class="pill amber"><span th:text="${#lists.size(amber)}">0</span> Amber</span>
+    <span class="pill green"><span th:text="${#lists.size(green)}">0</span> Green</span>
+    <span class="meta">
+      Evaluated <b th:text="${lastEvaluated != null} ? ${#temporals.format(lastEvaluated,'HH:mm:ss')} : 'never'">--</b>
+      · data as of <b th:text="${asOf != null} ? ${#temporals.format(asOf,'dd MMM HH:mm')} : 'n/a'">--</b>
+    </span>
+  </div>
+  <div class="stale" th:if="${stale}">Health evaluation looks stale, the scheduler may have stopped.</div>
+  <div class="board">
+    <div th:replace="~{fragments/lane :: lane('Red: needs attention','red',${red})}"></div>
+    <div th:replace="~{fragments/lane :: lane('Amber: watch','amber',${amber})}"></div>
+    <div th:replace="~{fragments/lane :: lane('Green: healthy','green',${green})}"></div>
+  </div>
+</div>
+</body>
+</html>

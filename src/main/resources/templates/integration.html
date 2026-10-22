@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${integration.name} + ' | Integration Health'">Integration</title>
+  <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<header>
+  <h1><a th:href="@{/}" class="back">&larr;</a> <span th:text="${integration.name}">Name</span></h1>
+  <span th:if="${snapshot != null}" class="badge" th:classappend="${#strings.toLowerCase(snapshot.status)}"
+        th:text="${snapshot.status}">GREEN</span>
+</header>
+<main>
+  <p th:if="${snapshot != null}" class="reason-big" th:text="${snapshot.reason}">reason</p>
+  <p th:if="${snapshot == null}">Not evaluated yet.</p>
+
+  <h3>Last 24 requests</h3>
+  <div class="spark">
+    <span class="dot" th:each="l : ${recent}" th:classappend="${l.success} ? 'ok' : 'bad'"
+          th:title="${#temporals.format(l.requestedAt,'HH:mm')} + ' ' + ${l.status} + ' ' + ${l.errorClass}"></span>
+  </div>
+
+  <h3>Failures by class (24h)</h3>
+  <p th:if="${#maps.isEmpty(failures)}">None</p>
+  <ul>
+    <li th:each="e : ${failures}"><b th:text="${e.key}">SERVER</b>: <span th:text="${e.value}">1</span></li>
+  </ul>
+
+  <h3>Recent requests</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Status</th><th>Code</th><th>Class</th><th>Latency (ms)</th></tr></thead>
+    <tbody>
+      <tr th:each="l : ${rows}" th:classappend="${l.success} ? '' : 'failrow'">
+        <td th:text="${#temporals.format(l.requestedAt,'dd MMM HH:mm')}">time</td>
+        <td th:text="${l.status}">status</td>
+        <td th:text="${l.statusCode != null} ? ${l.statusCode} : '-'">200</td>
+        <td th:text="${l.errorClass}">NONE</td>
+        <td th:text="${l.latencyMs}">100</td>
+      </tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="report" id="report">
+  <div class="summary">
+    <span class="pill red"><span th:text="${report.red()}">0</span> Red</span>
+    <span class="pill amber"><span th:text="${report.amber()}">0</span> Amber</span>
+    <span class="pill green"><span th:text="${report.green()}">0</span> Green</span>
+    <span class="meta">
+      <b th:text="${report.period().label()}">Last 24 hours</b>:
+      <span th:text="${#temporals.format(report.from(),'dd MMM HH:mm')}">from</span> to
+      <span th:text="${#temporals.format(report.to(),'dd MMM HH:mm')}">to</span>
+    </span>
+  </div>
+  <p class="note">
+    <span th:text="${report.cellNote()}">note</span>
+    <span class="legend"><i class="cell green"></i> healthy <i class="cell amber"></i> watch
+      <i class="cell red"></i> needs attention <i class="cell nodata"></i> no data</span>
+  </p>
+
+  <div class="report-grid">
+    <div class="card rcard" th:each="r : ${report.rows()}" th:classappend="${r.css()}">
+      <span class="card-head">
+        <a class="name" th:href="@{/integrations/{id}(id=${r.id()})}" th:text="${r.name()}">Name</a>
+        <span class="tag" th:text="${r.status()}">GREEN</span>
+      </span>
+      <span class="reason" th:text="${r.reason()}">reason</span>
+
+      <div class="strip">
+        <span class="cell" th:each="c : ${r.cells()}" th:classappend="${c.css()}" th:title="${c.detail()}"></span>
+      </div>
+      <div class="cellcount">
+        <span th:text="${r.redCells()} + ' red'">0 red</span> ·
+        <span th:text="${r.amberCells()} + ' amber'">0 amber</span> ·
+        <span th:text="${r.greenCells()} + ' green'">0 green</span>
+        <span th:if="${r.noDataCells() > 0}" th:text="' · ' + ${r.noDataCells()} + ' no data'"></span>
+      </div>
+
+      <div class="kpis">
+        <div><span class="k">Requests</span><b th:text="${#numbers.formatInteger(r.total(),1,'COMMA')}">0</b></div>
+        <div><span class="k">Success</span><b th:text="${#numbers.formatPercent(r.successPct(),1,1)}">0%</b></div>
+        <div><span class="k">5xx + timeouts</span><b th:text="${#numbers.formatPercent(r.errorPct(),1,1)}">0%</b></div>
+        <div><span class="k">429 throttled</span><b th:text="${#numbers.formatPercent(r.throttlePct(),1,1)}">0%</b></div>
+        <div><span class="k">Auth errors</span><b th:text="${r.authErrors()}">0</b></div>
+        <div><span class="k">p50 latency</span><b th:text="${r.p50() != null} ? ${#numbers.formatDecimal(r.p50(),1,0)} + ' ms' : '-'">-</b></div>
+        <div><span class="k">p95 latency</span><b th:text="${r.p95() != null} ? ${#numbers.formatDecimal(r.p95(),1,0)} + ' ms' : '-'">-</b></div>
+        <div><span class="k">Data coverage</span><b th:text="${#numbers.formatPercent(r.coveragePct(),1,0)}">100%</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
