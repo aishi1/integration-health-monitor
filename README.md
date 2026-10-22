@@ -8,7 +8,7 @@ integration; pages only read snapshots.
 1. Java 17+, Maven, h2 db (database `integration_monitor` is created automatically).
 2. `mvn spring-boot:run`, then open http://localhost:8080
 
-On first start the 30-day sample in `src/main/resources/sample/integration_logs_month.json` is loaded
+On first start the rolling 30-day sample in `src/main/resources/sample/integration_logs_month.json` is loaded
 (only if `request_log` is empty). Set `health.sample-logs:` to blank to disable seeding.
 
 ## Test
@@ -17,9 +17,12 @@ plus silent and auth-failing integrations RED.
 
 ## Endpoints
 `/` dashboard, `/dashboard/fragment` auto-refreshed lanes, `/integrations/{id}` drill-down, `/api/health` JSON.
+The dashboard's **Save as PDF** button opens the browser print dialog for the currently selected view;
+choose **Save as PDF** there to preserve the dashboard's UI layout. `/report/download?period=...`
+downloads the selected report as CSV.
 
 ## Tuning (application.yml, under `health`)
-- `reference-time`: `latest-log` for the August 2026 sample data, **`system` for real use**.
+- `reference-time`: `latest-log` for the rolling sample data, **`system` for real use**.
 - Window, minimum request volume, hysteresis (`recovery-factor`) and per-rule thresholds.
 
 ## Rules (`rules/`, worst-of rollup; add a rule with a `@Component @Order(n)` class)
@@ -43,6 +46,7 @@ p50/p95 latency and data coverage. Cells and the period total are judged with th
 as the live view, plus a coverage check (under 80% of expected requests = Amber, "data gap"). Reports are cached for 30 s.
 
 ## Sample data
-`python3 tools/generate_logs.py` regenerates the month (deterministic). Story: Slack has a short outage on 18 Jul; ADP degrades
-from 15 Jul; DocuSign hits 429s in business hours from 15 Jul; Workday has an expired-token window on 10 Jul and a 5 h silence on
-27 Jul; Greenhouse timeouts worsen from 20 Jul. The final hour is your supplied sample, so the Live view is unchanged.
+`python3 tools/generate_logs.py` regenerates a rolling 30-day sample ending today (deterministic status patterns). Story: Slack has
+a short outage 13 days after the start; ADP degrades from day 10; DocuSign hits 429s in business hours from day 10; Workday has
+an expired-token window on day 5 and a 5 h silence on day 22; Greenhouse timeouts worsen from day 15. The final hour follows the
+supplied sample, so the Live view keeps its original Green/Amber/Red picture.

@@ -36,6 +36,89 @@
         <span th:if="${r.noDataCells() > 0}" th:text="' · ' + ${r.noDataCells()} + ' no data'"></span>
       </div>
 
+      <section class="incident-list">
+        <h3><button class="incident-open" type="button" th:attr="aria-label='View incident timeline for ' + ${r.name()}">Incident Timeline</button></h3>
+        <div class="incident" th:if="${!r.incidents().isEmpty()}">
+          <span class="incident-status"
+                th:classappend="${r.incidents().get(r.incidents().size() - 1).status().name().toLowerCase()}"
+                th:text="${r.incidents().get(r.incidents().size() - 1).status()}">RED</span>
+          <span>
+            <span th:text="${#temporals.format(r.incidents().get(r.incidents().size() - 1).start(),'dd MMM HH:mm')}">22 Jul 12:00</span>
+            · <span th:text="${r.incidents().get(r.incidents().size() - 1).durationLabel()}">13 days</span>
+            · <span th:text="${r.incidents().get(r.incidents().size() - 1).dominantErrorType()}">5xx</span>
+            <span th:if="${r.incidents().get(r.incidents().size() - 1).active}" class="active-label">ongoing</span>
+          </span>
+
+        </div>
+        <p class="no-incidents" th:if="${r.incidents().isEmpty()}">No Incidents to show</p>
+        <dialog class="incident-dialog" th:attr="aria-label='Incident timeline for ' + ${r.name()}">
+          <div class="incident-dialog-head">
+            <h3 th:text="'Incident timeline · ' + ${r.name()}">Incident timeline</h3>
+            <button class="incident-close" type="button" aria-label="Close incident timeline">Close</button>
+          </div>
+          <div class="incident-dialog-list">
+            <p class="no-incidents" th:if="${r.incidents().isEmpty()}">No Incidents to show</p>
+            <div class="incident" th:each="incident : ${r.incidents()}">
+              <span class="incident-status" th:classappend="${incident.status().name().toLowerCase()}"
+                    th:text="${incident.status()}">RED</span>
+              <span>
+                <span th:text="${#temporals.format(incident.start(),'dd MMM HH:mm')}">22 Jul 12:00</span>
+                · <span th:text="${incident.durationLabel()}">13 days</span>
+                · <span th:text="${incident.dominantErrorType()}">5xx</span>
+                <span th:if="${incident.active}" class="active-label">ongoing</span>
+              </span>
+            </div>
+          </div>
+        </dialog>
+      </section>
+
+      <section class="report-chart">
+        <div class="chart-heading">
+          <h3>Failure-rate trend</h3>
+          <span th:text="${#numbers.formatPercent(r.errorPct(),1,1)}">0%</span>
+        </div>
+        <svg class="trend-chart" viewBox="0 0 300 100" role="img"
+             th:attr="aria-label=${r.name()} + ' failure rate trend with configured threshold lines'">
+          <line class="threshold amber-threshold" x1="8" x2="292"
+                th:y1="${report.thresholdY(report.amberThreshold())}"
+                th:y2="${report.thresholdY(report.amberThreshold())}"></line>
+          <line class="threshold red-threshold" x1="8" x2="292"
+                th:y1="${report.thresholdY(report.redThreshold())}"
+                th:y2="${report.thresholdY(report.redThreshold())}"></line>
+          <path class="trend-line" th:attr="d=${r.trendPath()}"></path>
+          <circle th:each="c, stat : ${r.cells()}" th:if="${c.total() > 0}"
+                  class="trend-point"
+                  th:attr="cx=${r.trendX(stat.index)}, cy=${r.trendY(c)}">
+            <title th:text="${c.errorSummary()}">Bucket failure rate</title>
+          </circle>
+        </svg>
+        <div class="chart-axis">
+          <span th:text="${#numbers.formatPercent(report.amberThreshold(),0,0)} + ' amber'">15% amber</span>
+          <span th:text="${#numbers.formatPercent(report.redThreshold(),0,0)} + ' red'">30% red</span>
+        </div>
+      </section>
+
+      <section class="report-chart">
+        <div class="chart-heading">
+          <h3>Failure types per bucket</h3>
+          <span class="chart-unit" th:text="${report.period().unitLabel()} + ' buckets'">24 hours buckets</span>
+        </div>
+        <div class="failure-chart" role="img" th:attr="aria-label=${r.name()} + ' failure types per bucket'">
+          <div class="failure-bar" th:each="c : ${r.cells()}" th:title="${c.errorSummary()}">
+            <span class="failure-segment server" th:style="|height:${c.serverPct() * 100}%|"></span>
+            <span class="failure-segment timeout" th:style="|height:${c.timeoutPct() * 100}%|"></span>
+            <span class="failure-segment throttled" th:style="|height:${c.throttledPct() * 100}%|"></span>
+            <span class="failure-segment auth" th:style="|height:${c.authPct() * 100}%|"></span>
+          </div>
+        </div>
+        <div class="failure-legend">
+          <span><i class="server"></i>5xx</span>
+          <span><i class="timeout"></i>Timeouts</span>
+          <span><i class="throttled"></i>429</span>
+          <span><i class="auth"></i>Auth</span>
+        </div>
+      </section>
+
       <div class="kpis">
         <div><span class="k">Requests</span><b th:text="${#numbers.formatInteger(r.total(),1,'COMMA')}">0</b></div>
         <div><span class="k">Success</span><b th:text="${#numbers.formatPercent(r.successPct(),1,1)}">0%</b></div>

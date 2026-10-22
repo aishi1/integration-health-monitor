@@ -11,4 +11,11 @@ public record ReportView(
         int red,
         int amber,
         int green,
-        List<IntegrationReport> rows) {}
+        List<IntegrationReport> rows,
+        double amberThreshold,
+        double redThreshold) {
+
+    public double thresholdY(double threshold) {
+        return 96 - Math.max(0, Math.min(1, threshold)) * 92;
+    }
+}

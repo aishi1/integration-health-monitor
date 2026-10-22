@@ -42,13 +42,14 @@ class SampleDataAcceptanceTest {
 
     @Test
     void flagsSilentAndAuthFailingIntegrations() {
+        LocalDateTime latest = logs.findMaxRequestedAt().orElseThrow();
         Integration dormant = integrations.save(new Integration("Dormant Sync", 5));
-        logs.save(new RequestLog(dormant, LocalDateTime.parse("2026-08-04T08:00:00"), "success", 200, 100));
+        logs.save(new RequestLog(dormant, latest.minusMinutes(115), "success", 200, 100));
 
         Integration expired = integrations.save(new Integration("Expired Token API", 5));
         List<RequestLog> auth = new ArrayList<>();
-        for (int m = 30; m <= 55; m += 5) {
-            auth.add(new RequestLog(expired, LocalDateTime.parse("2026-08-04T09:00:00").plusMinutes(m),
+        for (int m = 25; m >= 0; m -= 5) {
+            auth.add(new RequestLog(expired, latest.minusMinutes(m),
                     "error", 401, 90));
         }
         logs.saveAll(auth);

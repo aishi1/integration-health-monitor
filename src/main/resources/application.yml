@@ -22,7 +22,7 @@ spring:
       enabled: true
 
 health:
-  # latest-log : "now" = newest log timestamp (needed for the August 2026 sample data)
+  # latest-log : "now" = newest log timestamp (needed for rolling sample data)
   # system     : "now" = wall clock (production)
   reference-time: latest-log
   window-minutes: 60

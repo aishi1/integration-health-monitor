@@ -74,7 +74,8 @@ public class ReportService {
         int amber = (int) rows.stream().filter(r -> r.status() == HealthStatus.AMBER).count();
         int green = rows.size() - red - amber;
         String note = "Each cell = " + period.unitLabel() + " (oldest on the left, newest on the right). Hover a cell for details.";
-        return new ReportView(period, from, to, note, red, amber, green, rows);
+        return new ReportView(period, from, to, note, red, amber, green, rows,
+                props.errorRate().amber(), props.errorRate().red());
     }
 
     private IntegrationReport buildRow(Integration i, List<LogPoint> points, ReportPeriod period,
@@ -101,14 +102,21 @@ public class ReportService {
                 : judge(total, expectedTotal);
 
         List<BucketCell> cells = new ArrayList<>();
+        List<Incident> incidents = new ArrayList<>();
+        IncidentBuilder incident = null;
         int red = 0, amber = 0, green = 0, noData = 0;
         for (int idx = n - 1; idx >= 0; idx--) {                    // oldest first
             Agg a = buckets[idx];
             LocalDateTime end = to.minusSeconds(unitSec * idx);
-            String range = FMT.format(end.minusSeconds(unitSec)) + " to " + FMT.format(end);
+            LocalDateTime start = end.minusSeconds(unitSec);
+            String range = FMT.format(start) + " to " + FMT.format(end);
             if (a.total == 0) {
-                cells.add(new BucketCell(null, range + ": no data"));
+                cells.add(new BucketCell(null, range + ": no data", start, end, 0, 0, 0, 0, 0, 0));
                 noData++;
+                if (incident != null) {
+                    incidents.add(incident.finish(unitSec, false));
+                    incident = null;
+                }
                 continue;
             }
             Verdict v = judge(a, expectedBucket);
@@ -117,14 +125,25 @@ public class ReportService {
                 case AMBER -> amber++;
                 case GREEN -> green++;
             }
-            cells.add(new BucketCell(v.status(), range + " | " + a.total + " req | " + v.reason()));
+            cells.add(new BucketCell(v.status(), range + " | " + a.total + " req | " + v.reason(),
+                    start, end, a.total, a.server, a.timeouts, a.throttled, a.auth, a.client));
+            if (v.status() == HealthStatus.RED || v.status() == HealthStatus.AMBER) {
+                if (incident == null) incident = new IncidentBuilder(start, v.status());
+                incident.add(a, v.status());
+            } else if (incident != null) {
+                incidents.add(incident.finish(unitSec, false));
+                incident = null;
+            }
+        }
+        if (incident != null) {
+            incidents.add(incident.finish(unitSec, true));
         }
 
         double t = Math.max(1, total.total);
         return new IntegrationReport(i.getId(), i.getName(), overall.status(), overall.reason(), total.total,
                 total.ok() / t, total.failures() / t, total.throttled / t, total.auth,
                 percentile(okLatencies, 0.50), percentile(okLatencies, 0.95),
-                total.total / expectedTotal, red, amber, green, noData, cells);
+                total.total / expectedTotal, red, amber, green, noData, cells, incidents);
     }
 
     private Verdict judge(Agg a, double expected) {
@@ -166,6 +185,45 @@ public class ReportService {
         Collections.sort(sorted);
         int idx = Math.min(sorted.size() - 1, Math.max(0, (int) Math.ceil(q * sorted.size()) - 1));
         return sorted.get(idx).doubleValue();
+    }
+
+    private static final class IncidentBuilder {
+        private final LocalDateTime start;
+        private final EnumMap<ErrorClass, Integer> errors = new EnumMap<>(ErrorClass.class);
+        private int buckets;
+        private HealthStatus status;
+
+        private IncidentBuilder(LocalDateTime start, HealthStatus status) {
+            this.start = start;
+            this.status = status;
+        }
+
+        private void add(Agg a, HealthStatus bucketStatus) {
+            buckets++;
+            status = worse(status, bucketStatus);
+            errors.merge(ErrorClass.SERVER, a.server, Integer::sum);
+            errors.merge(ErrorClass.TIMEOUT, a.timeouts, Integer::sum);
+            errors.merge(ErrorClass.THROTTLED, a.throttled, Integer::sum);
+            errors.merge(ErrorClass.AUTH, a.auth, Integer::sum);
+            errors.merge(ErrorClass.CLIENT, a.client, Integer::sum);
+        }
+
+        private Incident finish(long unitSeconds, boolean active) {
+            ErrorClass dominant = errors.entrySet().stream()
+                    .filter(e -> e.getValue() > 0)
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            String type = dominant == null ? "Data gap" : switch (dominant) {
+                case SERVER -> "5xx";
+                case TIMEOUT -> "Timeouts";
+                case THROTTLED -> "429";
+                case AUTH -> "Auth";
+                case CLIENT -> "4xx";
+                case NONE -> "Data gap";
+            };
+            return new Incident(start, Duration.ofSeconds(unitSeconds * buckets).toMinutes(), type, status, active);
+        }
     }
 
     private static final class Agg {

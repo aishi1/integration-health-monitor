@@ -3,10 +3,14 @@ package com.brightline.monitor;
 import static com.brightline.monitor.domain.HealthStatus.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.brightline.monitor.report.BucketCell;
+import com.brightline.monitor.report.Incident;
 import com.brightline.monitor.report.IntegrationReport;
 import com.brightline.monitor.report.ReportPeriod;
 import com.brightline.monitor.report.ReportService;
 import com.brightline.monitor.report.ReportView;
+import com.brightline.monitor.repository.RequestLogRepository;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 class ReportServiceTest {
     @Autowired ReportService reports;
+    @Autowired RequestLogRepository logs;
 
     @Test
     void bucketCountsMatchPeriod() {
@@ -42,9 +47,34 @@ class ReportServiceTest {
     @Test
     void monthlyReportShowsTheAuthIncidentAndTheDataGap() {
         IntegrationReport workday = row(ReportPeriod.MONTHLY, "Workday Directory Sync");
+        LocalDate authDate = logs.findMaxRequestedAt().orElseThrow().toLocalDate().minusDays(25);
         assertThat(workday.authErrors()).isGreaterThan(0);
-        assertThat(workday.amberCells()).isGreaterThanOrEqualTo(2);   // 10 Jul auth outage + 27 Jul gap
+        assertThat(workday.amberCells()).isGreaterThanOrEqualTo(2);   // auth outage + data gap
         assertThat(workday.coveragePct()).isLessThan(1.0);
+
+        BucketCell authBucket = workday.cells().stream()
+                .filter(c -> c.start().toLocalDate().equals(authDate))
+                .filter(c -> c.authErrors() > 0)
+                .findFirst().orElseThrow();
+        assertThat(authBucket.total()).isGreaterThan(0);
+        assertThat(authBucket.failureRate()).isEqualTo(0.0);
+        assertThat(workday.incidents()).anySatisfy(incident -> {
+            assertThat(incident.start().toLocalDate()).isEqualTo(authDate);
+            assertThat(incident.dominantErrorType()).isEqualTo("Auth");
+            assertThat(incident.durationMinutes()).isPositive();
+        });
+    }
+
+    @Test
+    void incidentTimelineCombinesAdjacentUnhealthyBucketsAndTracksFailureCounts() {
+        IntegrationReport adp = row(ReportPeriod.WEEKLY, "ADP Payroll Sync");
+        assertThat(adp.incidents()).isNotEmpty();
+        assertThat(adp.incidents()).allSatisfy(incident ->
+                assertThat(incident.dominantErrorType()).isEqualTo("5xx"));
+        assertThat(adp.cells()).anySatisfy(cell -> {
+            assertThat(cell.serverErrors()).isPositive();
+            assertThat(cell.failureRate()).isEqualTo((double) (cell.serverErrors() + cell.timeoutErrors()) / cell.total());
+        });
     }
 
     private IntegrationReport row(ReportPeriod period, String name) {

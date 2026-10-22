@@ -28,6 +28,7 @@
     </select>
     <button id="refreshNow" type="button">Refresh now</button>
     <button id="download" type="button" title="Download the selected view as CSV">Download CSV</button>
+    <button id="downloadPdf" type="button" title="Print or save the selected view as PDF">Save as PDF</button>
     <span id="offline" hidden>connection lost, retrying</span>
   </div>
 </header>
@@ -107,6 +108,18 @@
   });
   document.getElementById('refreshNow').addEventListener('click', () => refresh(true));
   document.getElementById('download').addEventListener('click', () => { window.location.href = downloadUrl + '?period=' + currentView.toUpperCase(); });
+  document.getElementById('downloadPdf').addEventListener('click', () => window.print());
+  document.addEventListener('click', event => {
+    if (!(event.target instanceof Element)) return;
+    const openButton = event.target.closest('.incident-open');
+    if (openButton) {
+      const dialog = openButton.closest('.rcard')?.querySelector('.incident-dialog');
+      if (dialog instanceof HTMLDialogElement) dialog.showModal();
+      return;
+    }
+    const closeButton = event.target.closest('.incident-close');
+    if (closeButton) closeButton.closest('.incident-dialog')?.close();
+  });
 </script>
 </body>
 </html>
