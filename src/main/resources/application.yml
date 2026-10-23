@@ -45,6 +45,6 @@ incident-summary:
   api-key: ${GEMINI_API_KEY:}
   endpoint: https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
   model: gemini-3.1-flash-lite
-  connect-timeout-millis: 2000
-  read-timeout-millis: 5000
+  connect-timeout-millis: 5000
+  read-timeout-millis: 25000
   cache-ttl-seconds: 300

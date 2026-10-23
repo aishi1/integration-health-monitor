@@ -4,19 +4,23 @@
 <section th:fragment="lane(title, css, items)" th:class="'lane ' + ${css}">
   <h2><span th:text="${title}">Lane</span> <small th:text="${#lists.size(items)}">0</small></h2>
   <p class="empty" th:if="${#lists.isEmpty(items)}">None</p>
-  <a class="card" th:classappend="${css}" th:each="s : ${items}" th:href="@{/integrations/{id}(id=${s.integrationId})}">
+  <div class="card" th:classappend="${css}" th:each="s : ${items}">
     <span class="card-head">
-      <strong th:text="${s.integrationName}">Name</strong>
+      <strong><a th:href="@{/integrations/{id}(id=${s.integrationId})}" th:text="${s.integrationName}">Name</a></strong>
       <span class="tag" th:text="${s.status}">GREEN</span>
     </span>
     <span class="reason" th:text="${s.reason}">reason</span>
-    <span class="incident-summary" th:text="${summaries[s.integrationId]}">Incident summary</span>
+    <span class="summary-row" th:if="${summaries[s.integrationId] != null and summaries[s.integrationId] != ''}">
+      <span class="incident-summary" th:text="${summaries[s.integrationId]}">Incident summary</span>
+      <button type="button" class="copy-btn" th:attr="data-copy=${summaries[s.integrationId]}"
+              title="Copy summary to clipboard" aria-label="Copy summary to clipboard">📋</button>
+    </span>
     <span class="stats">
       <span th:text="${s.totalRequests} + ' req'">12 req</span>
       <span th:text="'err ' + ${#numbers.formatPercent(s.errorRate,1,0)}">err 0%</span>
       <span th:if="${s.medianLatencyMs != null}" th:text="${#numbers.formatDecimal(s.medianLatencyMs,1,0)} + ' ms'">100 ms</span>
     </span>
-  </a>
+  </div>
 </section>
 </body>
 </html>

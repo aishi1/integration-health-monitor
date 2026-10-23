@@ -67,11 +67,43 @@
       if (!r.ok) throw new Error(r.status);
       const html = await r.text();
       if (requestedView !== currentView) return;   // user switched view while this was in flight
+      if (!force && selectionInsideView()) return; // don't wipe text the user is selecting/copying
       document.getElementById('view-root').innerHTML = html;
       document.getElementById('offline').hidden = true;
     } catch (e) {
       document.getElementById('offline').hidden = false;
     }
+  }
+
+  function selectionInsideView() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0 || sel.toString().trim() === '') return false;
+    const root = document.getElementById('view-root');
+    return root.contains(sel.anchorNode) || root.contains(sel.focusNode);
+  }
+
+  async function copyText(text, button) {
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(text);   // needs https or localhost
+      ok = true;
+    } catch (e) {                                   // fallback for plain-http hosts
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      ta.remove();
+    }
+    const original = button.textContent;
+    button.textContent = ok ? '✅' : '⚠️';
+    button.classList.add(ok ? 'done' : 'failed');
+    setTimeout(() => {
+      button.textContent = original;
+      button.classList.remove('done', 'failed');
+    }, 1500);
   }
 
   function schedule(seconds) {
@@ -111,6 +143,11 @@
   document.getElementById('downloadPdf').addEventListener('click', () => window.print());
   document.addEventListener('click', event => {
     if (!(event.target instanceof Element)) return;
+    const copyButton = event.target.closest('.copy-btn');
+    if (copyButton) {
+      copyText(copyButton.dataset.copy || '', copyButton);
+      return;
+    }
     const openButton = event.target.closest('.incident-open');
     if (openButton) {
       const dialog = openButton.closest('.rcard')?.querySelector('.incident-dialog');
