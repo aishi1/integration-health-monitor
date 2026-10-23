@@ -59,8 +59,8 @@ public class StatsService {
             recent = median(okLatencies.subList(okLatencies.size() - RECENT_SUCCESSES, okLatencies.size()));
         }
 
-        Long since = logs.findTopByIntegrationIdAndRequestedAtLessThanEqualOrderByRequestedAtDesc(i.getId(), now)
-                .map(l -> Duration.between(l.getRequestedAt(), now).toMinutes()).orElse(null);
+        Long since = logs.findLatestRequestAt(i.getId(), now)
+                .map(requestedAt -> Duration.between(requestedAt, now).toMinutes()).orElse(null);
 
         return new WindowStats(props.windowMinutes(), window.size(), server, timeouts, throttled, auth,
                 client, consecutive, since, baseline, recent, previous);

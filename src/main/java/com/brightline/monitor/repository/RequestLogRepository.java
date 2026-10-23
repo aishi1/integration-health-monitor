@@ -22,8 +22,10 @@ public interface RequestLogRepository extends JpaRepository<RequestLog, Long> {
     List<RequestLog> findByIntegrationIdAndRequestedAtBetweenOrderByRequestedAtAsc(
             Long integrationId, LocalDateTime from, LocalDateTime to);
 
-    Optional<RequestLog> findTopByIntegrationIdAndRequestedAtLessThanEqualOrderByRequestedAtDesc(
-            Long integrationId, LocalDateTime to);
+    @Query("select max(r.requestedAt) from RequestLog r "
+            + "where r.integration.id = :integrationId and r.requestedAt <= :to")
+    Optional<LocalDateTime> findLatestRequestAt(
+            @Param("integrationId") Long integrationId, @Param("to") LocalDateTime to);
 
     @Query("select max(r.requestedAt) from RequestLog r")
     Optional<LocalDateTime> findMaxRequestedAt();

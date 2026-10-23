@@ -61,6 +61,7 @@ public class DashboardController {
 
     @GetMapping("/")
     public String dashboard(Model model) {
+        evaluation.evaluateIfStale(Duration.ZERO);
         populate(model);
         return "dashboard";
     }

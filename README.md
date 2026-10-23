@@ -1,12 +1,12 @@
 # Integration Health Monitor
 
-Spring Boot 3 + Thymeleaf + MySQL dashboard that triages integrations into Green / Amber / Red
+Spring Boot 3 + Thymeleaf dashboard that triages integrations into Green / Amber / Red
 from raw request logs. A scheduler evaluates every 60 s and writes one snapshot row per
 integration; pages only read snapshots.
 
 ## Run
 1. Java 17+, Maven, h2 db (database `integration_monitor` is created automatically).
-2. `mvn spring-boot:run`, then open http://localhost:8080
+2. `mvn spring-boot:run`, then open http://localhost:8080/integration-dashboard
 
 On first start the rolling 30-day sample in `src/main/resources/sample/integration_logs_month.json` is loaded
 (only if `request_log` is empty). Set `health.sample-logs:` to blank to disable seeding.
@@ -16,7 +16,7 @@ On first start the rolling 30-day sample in `src/main/resources/sample/integrati
 plus silent and auth-failing integrations RED.
 
 ## Endpoints
-`/` dashboard, `/dashboard/fragment` auto-refreshed lanes, `/integrations/{id}` drill-down, `/api/health` JSON.
+`/integration-dashboard` dashboard (`/` redirects there), `/dashboard/fragment` auto-refreshed lanes, `/integrations/{id}` drill-down, `/api/health` JSON.
 The dashboard's **Save as PDF** button opens the browser print dialog for the currently selected view;
 choose **Save as PDF** there to preserve the dashboard's UI layout. `/report/download?period=...`
 downloads the selected report as CSV.
@@ -53,3 +53,28 @@ as the live view, plus a coverage check (under 80% of expected requests = Amber,
 a short outage 13 days after the start; ADP degrades from day 10; DocuSign hits 429s in business hours from day 10; Workday has
 an expired-token window on day 5 and a 5 h silence on day 22; Greenhouse timeouts worsen from day 15. The final hour follows the
 supplied sample, so the Live view keeps its original Green/Amber/Red picture.
+
+The dashboard reads the latest health snapshots; scheduled or refresh-triggered evaluation computes new ones from request logs. Reports aggregate the same logs over historical periods, while incident summaries send aggregate metrics to Gemini only when configured.
+
+## System design diagram
+
+The diagram below shows the main application flow: browser requests are handled by the Spring Boot dashboard, scheduled evaluation computes health from request logs, and the resulting snapshot data is read by dashboards and reports. The H2 database stores raw request logs and the latest per-integration health state, while the optional Gemini service can generate incident summaries from aggregated metrics.
+
+```mermaid
+graph TD
+    User["Operations User"] -->|HTTPS| Controller["Web Controllers & API<br/>(Spring Boot / Thymeleaf)"]
+    Controller -->|Renders UI / Heat Strips| Templates["Thymeleaf Templates"]
+    
+    subgraph SpringBootApp ["Integration Health Monitor Application"]
+        Scheduler["Scheduler Component<br/>(Every 60s)"] -->|Triggers evaluation| Service["Service & Rule Engine<br/>(@Component @Order(n))"]
+        Service -->|Queries logs / Saves snapshot| Repo["Repository & Ingest"]
+        Controller -->|Fetches Live snapshots| Service
+        Controller -->|Fetches Daily/Weekly/Monthly reports| Service
+        Controller -->|Requests AI summary| GeminiClient["Incident Summary Client"]
+    end
+
+    Repo -->|Reads/Writes| H2DB[("H2 Database<br/>(integration_monitor)")]
+    GeminiClient -->|Sends aggregate metrics| GeminiAPI["Gemini API (Optional)"]
+
+    style SpringBootApp fill:#f9f9f9,stroke:#333,stroke-width:2px
+```

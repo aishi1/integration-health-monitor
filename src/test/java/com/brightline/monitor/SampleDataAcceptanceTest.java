@@ -3,6 +3,7 @@ package com.brightline.monitor;
 import static com.brightline.monitor.domain.HealthStatus.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.brightline.monitor.controller.DashboardController;
 import com.brightline.monitor.domain.HealthSnapshot;
 import com.brightline.monitor.domain.HealthStatus;
 import com.brightline.monitor.domain.Integration;
@@ -17,6 +18,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.ui.ExtendedModelMap;
 import org.springframework.test.context.ActiveProfiles;
 
 /** Seeds the provided sample logs (clock anchored at 09:55) and asserts the expected triage. */
@@ -27,6 +29,7 @@ class SampleDataAcceptanceTest {
     @Autowired HealthSnapshotRepository snapshots;
     @Autowired IntegrationRepository integrations;
     @Autowired RequestLogRepository logs;
+    @Autowired DashboardController dashboard;
 
     @Test
     void classifiesProvidedSampleData() {
@@ -59,6 +62,35 @@ class SampleDataAcceptanceTest {
         assertThat(reasonOf("Dormant Sync")).contains("No requests for");
         assertThat(statusOf("Expired Token API")).isEqualTo(RED);
         assertThat(reasonOf("Expired Token API")).contains("auth failure");
+    }
+
+    @Test
+    void recognizesRecentRequestsWhenEvaluatingSilence() {
+        LocalDateTime latest = logs.findMaxRequestedAt().orElseThrow();
+        Integration active = integrations.save(new Integration("Recent Requests Sync", 5));
+        logs.save(new RequestLog(active, latest.minusMinutes(5), "success", 200, 100));
+
+        service.evaluate(active, latest);
+
+        HealthSnapshot snapshot = snapshots.findById(active.getId()).orElseThrow();
+        assertThat(snapshot.getMinutesSinceLastRequest()).isEqualTo(5);
+        assertThat(snapshot.getReason()).doesNotContain("No requests ever recorded");
+    }
+
+    @Test
+    void firstDashboardLoadReevaluatesExistingSnapshots() {
+        LocalDateTime latest = logs.findMaxRequestedAt().orElseThrow();
+        Integration active = integrations.save(new Integration("Dashboard First Load Sync", 5));
+        LocalDateTime requestedAt = latest.minusMinutes(5);
+        logs.save(new RequestLog(active, requestedAt, "success", 200, 100));
+        snapshots.save(new HealthSnapshot(active.getId(), active.getName(), RED,
+                "No requests ever recorded", 0, null, 0, null, 0, latest, LocalDateTime.now()));
+
+        dashboard.dashboard(new ExtendedModelMap());
+
+        HealthSnapshot snapshot = snapshots.findById(active.getId()).orElseThrow();
+        assertThat(snapshot.getMinutesSinceLastRequest()).isEqualTo(5);
+        assertThat(snapshot.getReason()).doesNotContain("No requests ever recorded");
     }
 
     private HealthStatus statusOf(String name) { return snapshot(name).getStatus(); }
