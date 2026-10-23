@@ -25,6 +25,9 @@ downloads the selected report as CSV.
 - `reference-time`: `latest-log` for the rolling sample data, **`system` for real use**.
 - Window, minimum request volume, hysteresis (`recovery-factor`) and per-rule thresholds.
 
+## Live incident summaries
+The Live dashboard adds a one-sentence summary for each integration using aggregate request counts from the configured health window. To enable LLM summaries, set `GEMINI_API_KEY` before starting the application. The dashboard uses Gemini `gemini-3.8-flash` by default; endpoint and model can be changed under `incident-summary` in `application.yml`. Only aggregate metrics are sent, requests have bounded timeouts, and unchanged inputs are cached for five minutes. If the key is missing or the API request fails, a deterministic metrics-based summary is shown instead. Historical reports and integration detail pages are unchanged.
+
 ## Rules (`rules/`, worst-of rollup; add a rule with a `@Component @Order(n)` class)
 | Rule | Looks at |
 |---|---|

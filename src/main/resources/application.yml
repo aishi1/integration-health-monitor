@@ -40,3 +40,11 @@ health:
   consecutive-failures: { amber: 3,    red: 5 }
   latency:              { amber-ratio: 1.5, red-ratio: 3.0 }  # recent vs baseline median, successes only
   silence:              { amber-cadences: 2, red-cadences: 5 }
+
+incident-summary:
+  api-key: ${GEMINI_API_KEY:}
+  endpoint: https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+  model: gemini-3.1-flash-lite
+  connect-timeout-millis: 2000
+  read-timeout-millis: 5000
+  cache-ttl-seconds: 300

@@ -14,8 +14,8 @@
   </div>
   <p class="note">
     <span th:text="${report.cellNote()}">note</span>
-    <span class="legend"><i class="cell green"></i> healthy <i class="cell amber"></i> watch
-      <i class="cell red"></i> needs attention <i class="cell nodata"></i> no data</span>
+    <span class="legend"><i class="cell green"></i> On-Track <i class="cell amber"></i> At Risk
+      <i class="cell red"></i> Off-Track <i class="cell nodata"></i> No Data</span>
   </p>
 
   <div class="report-grid">
@@ -86,16 +86,19 @@
                 th:y1="${report.thresholdY(report.redThreshold())}"
                 th:y2="${report.thresholdY(report.redThreshold())}"></line>
           <path class="trend-line" th:attr="d=${r.trendPath()}"></path>
-          <circle th:each="c, stat : ${r.cells()}" th:if="${c.total() > 0}"
-                  class="trend-point"
-                  th:attr="cx=${r.trendX(stat.index)}, cy=${r.trendY(c)}">
+          <g th:each="c, stat : ${r.cells()}" th:if="${c.total() > 0}"
+             class="trend-point-group">
             <title th:text="${c.errorSummary()}">Bucket failure rate</title>
-          </circle>
+            <circle class="trend-point-hit" r="8"
+                    th:attr="cx=${r.trendX(stat.index)}, cy=${r.trendY(c)}"></circle>
+            <circle class="trend-point" r="2.5"
+                    th:attr="cx=${r.trendX(stat.index)}, cy=${r.trendY(c)}"></circle>
+          </g>
         </svg>
-        <div class="chart-axis">
+        <!--<div class="chart-axis">
           <span th:text="${#numbers.formatPercent(report.amberThreshold(),0,0)} + ' amber'">15% amber</span>
           <span th:text="${#numbers.formatPercent(report.redThreshold(),0,0)} + ' red'">30% red</span>
-        </div>
+        </div>-->
       </section>
 
       <section class="report-chart">

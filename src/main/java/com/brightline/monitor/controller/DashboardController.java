@@ -3,6 +3,7 @@ package com.brightline.monitor.controller;
 import com.brightline.monitor.config.HealthClock;
 import com.brightline.monitor.config.HealthProperties;
 import com.brightline.monitor.domain.ErrorClass;
+import com.brightline.monitor.domain.ErrorClassCount;
 import com.brightline.monitor.domain.HealthSnapshot;
 import com.brightline.monitor.domain.HealthStatus;
 import com.brightline.monitor.domain.Integration;
@@ -14,6 +15,8 @@ import com.brightline.monitor.repository.RequestLogRepository;
 import com.brightline.monitor.report.ReportPeriod;
 import com.brightline.monitor.report.ReportService;
 import com.brightline.monitor.service.HealthEvaluationService;
+import com.brightline.monitor.service.IncidentMetrics;
+import com.brightline.monitor.service.IncidentSummaryService;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -40,10 +43,12 @@ public class DashboardController {
     private final HealthClock clock;
     private final HealthEvaluationService evaluation;
     private final ReportService reports;
+    private final IncidentSummaryService incidentSummaries;
 
     public DashboardController(HealthSnapshotRepository snapshots, IntegrationRepository integrations,
                                RequestLogRepository logs, HealthProperties props, HealthClock clock,
-                               HealthEvaluationService evaluation, ReportService reports) {
+                               HealthEvaluationService evaluation, ReportService reports,
+                               IncidentSummaryService incidentSummaries) {
         this.snapshots = snapshots;
         this.integrations = integrations;
         this.logs = logs;
@@ -51,6 +56,7 @@ public class DashboardController {
         this.clock = clock;
         this.evaluation = evaluation;
         this.reports = reports;
+        this.incidentSummaries = incidentSummaries;
     }
 
     @GetMapping("/")
@@ -110,6 +116,26 @@ public class DashboardController {
 
     private void populate(Model model) {
         List<HealthSnapshot> all = snapshots.findAll();
+        LocalDateTime metricsTo = clock.now();
+        Map<Long, Map<ErrorClass, Long>> counts = new HashMap<>();
+        for (ErrorClassCount row : logs.countByIntegrationAndErrorClass(
+                metricsTo.minusMinutes(props.windowMinutes()), metricsTo)) {
+            counts.computeIfAbsent(row.integrationId(), ignored -> new EnumMap<>(ErrorClass.class))
+                    .put(row.errorClass(), row.count());
+        }
+        Map<Long, String> summaries = new HashMap<>();
+        for (HealthSnapshot snapshot : all) {
+            Map<ErrorClass, Long> byClass = counts.getOrDefault(snapshot.getIntegrationId(), Map.of());
+            long successes = byClass.getOrDefault(ErrorClass.NONE, 0L);
+            IncidentMetrics metrics = new IncidentMetrics(snapshot.getIntegrationName(), snapshot.getStatus(),
+                    props.windowMinutes(), sum(byClass), successes,
+                    byClass.getOrDefault(ErrorClass.SERVER, 0L),
+                    byClass.getOrDefault(ErrorClass.TIMEOUT, 0L),
+                    byClass.getOrDefault(ErrorClass.THROTTLED, 0L),
+                    byClass.getOrDefault(ErrorClass.AUTH, 0L),
+                    byClass.getOrDefault(ErrorClass.CLIENT, 0L));
+            summaries.put(snapshot.getIntegrationId(), incidentSummaries.summarize(metrics));
+        }
         Comparator<HealthSnapshot> order = Comparator.comparingDouble(HealthSnapshot::getErrorRate).reversed()
                 .thenComparing(HealthSnapshot::getIntegrationName);
         for (HealthStatus st : HealthStatus.values()) {
@@ -124,8 +150,13 @@ public class DashboardController {
                 || lastEvaluated.isBefore(LocalDateTime.now().minusSeconds(3L * props.refreshSeconds()));
         model.addAttribute("lastEvaluated", lastEvaluated);
         model.addAttribute("asOf", asOf);
+        model.addAttribute("summaries", summaries);
         model.addAttribute("stale", stale);
         model.addAttribute("refreshSeconds", props.refreshSeconds());
+    }
+
+    private long sum(Map<ErrorClass, Long> counts) {
+        return counts.values().stream().mapToLong(Long::longValue).sum();
     }
 
     @GetMapping("/report/download")

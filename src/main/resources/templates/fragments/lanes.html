@@ -13,9 +13,9 @@
   </div>
   <div class="stale" th:if="${stale}">Health evaluation looks stale, the scheduler may have stopped.</div>
   <div class="board">
-    <div th:replace="~{fragments/lane :: lane('Red: needs attention','red',${red})}"></div>
-    <div th:replace="~{fragments/lane :: lane('Amber: watch','amber',${amber})}"></div>
-    <div th:replace="~{fragments/lane :: lane('Green: healthy','green',${green})}"></div>
+    <div th:replace="~{fragments/lane :: lane('Red: Off-Track','red',${red})}"></div>
+    <div th:replace="~{fragments/lane :: lane('Amber: At Risk','amber',${amber})}"></div>
+    <div th:replace="~{fragments/lane :: lane('Green: On-Track','green',${green})}"></div>
   </div>
 </div>
 </body>
